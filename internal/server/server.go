@@ -110,6 +110,7 @@ func (s *Server) httpRoutine(ctx context.Context, exiting func() bool) {
 	r.POST("/manager/group/new", s.handleGroupNew)
 	r.POST("/manager/group/enter-codes", s.handleGroupEnterCodes)
 	r.POST("/manager/group/join/:code", s.handleGroupJoin)
+	r.POST("/manager/wallet/new-by-dir", s.handleWalletNewByDir)
 
 	fnListen := func(listen string) {
 		srv := &http.Server{

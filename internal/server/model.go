@@ -236,3 +236,14 @@ type GroupEnterCodesResponse struct {
 	ExpireAt   int64    `json:"expireAt"`
 	ExpireAtS  string   `json:"expireAtS"`
 }
+
+type WalletNewByDirRequest struct {
+	GroupID       string        `json:"groupID"`
+	NewWalletName string        `json:"newWalletName"`
+	Dir           model.CostDir `json:"dir"`
+}
+
+func (req *WalletNewByDirRequest) Valid() bool {
+	return req.NewWalletName != "" &&
+		(req.Dir == model.CostDirIn || req.Dir == model.CostDirOut)
+}

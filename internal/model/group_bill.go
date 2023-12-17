@@ -25,7 +25,7 @@ type GroupBill struct {
 }
 
 func (gb *GroupBill) Valid() bool {
-	if gb.FromSubWalletID < 0 || gb.ToSubWalletID < 0 || gb.Amount <= 0 ||
+	if gb.FromSubWalletID == 0 || gb.ToSubWalletID == 0 || gb.Amount <= 0 ||
 		gb.CostDir < CostDirInGroup || gb.CostDir > CostDirOut {
 		return false
 	}

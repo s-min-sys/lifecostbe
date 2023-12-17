@@ -168,7 +168,7 @@ func (impl *storageImpl) NewPersonEx(name string, suggestPersonID uint64) (perso
 		}
 
 		personID = suggestPersonID
-		if personID == 00 {
+		if personID == 0 {
 			personID = snowflake.ID()
 		}
 
@@ -257,7 +257,53 @@ func (impl *storageImpl) NewGroup(name string, personID uint64) (id uint64, err 
 
 		person.Groups = append(person.Groups, id)
 		newOrg.Persons[personID] = person
+		/*
+			//
+			//
+			//
 
+			groupMerchantPersonID := snowflake.ID()
+			groupMerchantPersonWalletID := groupMerchantPersonID
+
+			newOrg.SubWallets[groupMerchantPersonWalletID] = model.Wallet{
+				ID:       groupMerchantPersonWalletID,
+				Name:     "*",
+				PersonID: groupMerchantPersonID,
+			}
+
+			newOrg.Persons[groupMerchantPersonID] = model.Person{
+				ID:           groupMerchantPersonID,
+				Name:         "进账",
+				SubWalletIDs: []uint64{groupMerchantPersonWalletID},
+			}
+
+			if newOrg.GroupMerchants[id] == nil {
+				newOrg.GroupMerchants[id] = make(map[uint64]model.CostDir)
+			}
+
+			newOrg.GroupMerchants[id][groupMerchantPersonID] = model.CostDirOut
+
+			//
+			//
+			//
+
+			groupMerchantPersonID = snowflake.ID()
+			groupMerchantPersonWalletID = groupMerchantPersonID
+
+			newOrg.SubWallets[groupMerchantPersonWalletID] = model.Wallet{
+				ID:       groupMerchantPersonWalletID,
+				Name:     "*",
+				PersonID: groupMerchantPersonID,
+			}
+
+			newOrg.Persons[groupMerchantPersonID] = model.Person{
+				ID:           groupMerchantPersonID,
+				Name:         "消费",
+				SubWalletIDs: []uint64{groupMerchantPersonWalletID},
+			}
+
+			newOrg.GroupMerchants[id][groupMerchantPersonID] = model.CostDirIn
+		*/
 		return
 	})
 
@@ -385,8 +431,6 @@ func (impl *storageImpl) GetGroupNames(groupIDs []uint64) (names []string, err e
 				names[idx] = group.Name
 			}
 		}
-
-		return
 	})
 
 	return
@@ -494,8 +538,6 @@ func (impl *storageImpl) IsGroupAdmin(groupID, personID uint64) (adminFlag bool,
 				return
 			}
 		}
-
-		return
 	})
 
 	return
@@ -548,8 +590,6 @@ func (impl *storageImpl) GetWallet(walletID uint64) (wallet model.Wallet, err er
 
 			return
 		}
-
-		return
 	})
 
 	return
@@ -565,8 +605,6 @@ func (impl *storageImpl) GetPersonWalletIDs(personID uint64) (subWalletIDs []uin
 		}
 
 		subWalletIDs = person.SubWalletIDs
-
-		return
 	})
 
 	return

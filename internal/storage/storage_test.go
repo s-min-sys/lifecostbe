@@ -32,10 +32,11 @@ func utEqualSliceIgnoreOrder(t *testing.T, a, b []uint64) {
 	assert.EqualValues(t, a, b)
 }
 
+// nolint
 func TestStorage(t *testing.T) {
 
 	_ = os.RemoveAll("organization")
-	stg := NewStorage(".", false)
+	stg := NewStorage(".", false, nil)
 
 	//
 	// create persons
@@ -200,7 +201,7 @@ func TestStorage(t *testing.T) {
 	assert.Nil(t, err)
 	utEqualSliceIgnoreOrder(t, []uint64{homeGroupID, jiaZuGroupID}, groupIDs)
 
-	adminFlag, err = stg.IsGroupAdmin(jiaZuGroupID, jinBaoPersonID)
+	_, err = stg.IsGroupAdmin(jiaZuGroupID, jinBaoPersonID)
 	assert.NotNil(t, err)
 
 	err = stg.JoinGroup(jiaZuGroupID, jinBaoPersonID)
@@ -254,7 +255,7 @@ func TestStorage(t *testing.T) {
 	//
 	//
 
-	huaFeiLabelID, err := stg.NewLabel("日常花费")
+	huaFeiLabelID, _ := stg.NewLabel("日常花费")
 
 	err = stg.Record(homeGroupID, model.GroupBill{
 		FromSubWalletID: subWeChatWalletID,

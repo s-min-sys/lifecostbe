@@ -134,7 +134,9 @@ func (s *Server) getAndCheckToken(c *gin.Context) (token string, uid uint64, use
 	return
 }
 
-func (s *Server) handleLogoutInner(c *gin.Context) (code Code, msg string) {
+func (s *Server) handleLogoutInner(c *gin.Context) (code_ Code, msg string) {
+	code_ = CodeSuccess
+
 	token, _, _, code, msg := s.getAndCheckToken(c)
 	if code != CodeSuccess {
 		return
@@ -142,13 +144,10 @@ func (s *Server) handleLogoutInner(c *gin.Context) (code Code, msg string) {
 
 	err := s.accounts.Logout(token)
 	if err != nil {
-		code = CodeInternalError
 		msg = err.Error()
 
 		return
 	}
-
-	code = CodeSuccess
 
 	return
 }
