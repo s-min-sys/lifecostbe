@@ -86,14 +86,18 @@ func (s *Server) doStatistics(groupID uint64) (dayStatistics, weekStatistics, mo
 		return
 	}
 
+	n := now.With(timeNow)
+
+	n.WeekStartDay = time.Monday
+
 	weekStatistics, err = s.doStatisticsOnDates(groupID,
-		now.With(timeNow).BeginningOfWeek(), now.With(timeNow).EndOfWeek())
+		n.BeginningOfWeek(), n.EndOfWeek())
 	if err != nil {
 		return
 	}
 
 	monthStatistics, err = s.doStatisticsOnDates(groupID,
-		now.With(timeNow).BeginningOfMonth(), now.With(timeNow).EndOfMonth())
+		n.BeginningOfMonth(), n.EndOfMonth())
 
 	return
 }
