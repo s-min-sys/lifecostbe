@@ -3,7 +3,7 @@ package storage
 import "github.com/s-min-sys/lifecostbe/internal/model"
 
 func (impl *storageImpl) initData() (err error) {
-	earnID, _, err := impl.NewPerson("[全局]挣钱了")
+	earnID, _, err := impl.NewPerson("[全局]进账")
 	if err != nil {
 		return
 	}
@@ -32,7 +32,7 @@ func (impl *storageImpl) initData() (err error) {
 	//
 	//
 
-	spendID, _, err := impl.NewPerson("[全局]消费了")
+	spendID, _, err := impl.NewPerson("[全局]消费")
 	if err != nil {
 		return
 	}

@@ -180,11 +180,32 @@ func (impl *storageImpl) NewPersonEx(name string, suggestPersonID uint64) (perso
 			PersonID: personID,
 		}
 
+		swIDAlipay := snowflake.ID()
+		newOrg.SubWallets[swIDAlipay] = model.Wallet{
+			ID:       swIDAlipay,
+			Name:     "支付宝",
+			PersonID: personID,
+		}
+
+		swIDWeChat := snowflake.ID()
+		newOrg.SubWallets[swIDWeChat] = model.Wallet{
+			ID:       swIDWeChat,
+			Name:     "微信",
+			PersonID: personID,
+		}
+
+		swIDBank := snowflake.ID()
+		newOrg.SubWallets[swIDBank] = model.Wallet{
+			ID:       swIDBank,
+			Name:     "银行账户",
+			PersonID: personID,
+		}
+
 		newOrg.Persons[personID] = model.Person{
 			ID:           personID,
 			Name:         name,
 			Groups:       nil,
-			SubWalletIDs: []uint64{defaultWalletID},
+			SubWalletIDs: []uint64{defaultWalletID, swIDAlipay, swIDWeChat, swIDBank},
 		}
 
 		return
