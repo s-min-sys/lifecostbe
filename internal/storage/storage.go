@@ -172,7 +172,10 @@ func (impl *storageImpl) NewPersonEx(name string, suggestPersonID uint64) (perso
 			personID = snowflake.ID()
 		}
 
+		walletIDs := make([]uint64, 0, 5)
+
 		defaultWalletID = personID
+		walletIDs = append(walletIDs, defaultWalletID)
 
 		newOrg.SubWallets[defaultWalletID] = model.Wallet{
 			ID:       defaultWalletID,
@@ -180,32 +183,40 @@ func (impl *storageImpl) NewPersonEx(name string, suggestPersonID uint64) (perso
 			PersonID: personID,
 		}
 
-		swIDAlipay := snowflake.ID()
-		newOrg.SubWallets[swIDAlipay] = model.Wallet{
-			ID:       swIDAlipay,
-			Name:     "支付宝",
-			PersonID: personID,
-		}
+		if suggestPersonID > 0 { // not Merchant user
+			swIDAlipay := snowflake.ID()
+			walletIDs = append(walletIDs, swIDAlipay)
 
-		swIDWeChat := snowflake.ID()
-		newOrg.SubWallets[swIDWeChat] = model.Wallet{
-			ID:       swIDWeChat,
-			Name:     "微信",
-			PersonID: personID,
-		}
+			newOrg.SubWallets[swIDAlipay] = model.Wallet{
+				ID:       swIDAlipay,
+				Name:     "支付宝",
+				PersonID: personID,
+			}
 
-		swIDBank := snowflake.ID()
-		newOrg.SubWallets[swIDBank] = model.Wallet{
-			ID:       swIDBank,
-			Name:     "银行账户",
-			PersonID: personID,
+			swIDWeChat := snowflake.ID()
+			walletIDs = append(walletIDs, swIDWeChat)
+
+			newOrg.SubWallets[swIDWeChat] = model.Wallet{
+				ID:       swIDWeChat,
+				Name:     "微信",
+				PersonID: personID,
+			}
+
+			swIDBank := snowflake.ID()
+			walletIDs = append(walletIDs, swIDBank)
+
+			newOrg.SubWallets[swIDBank] = model.Wallet{
+				ID:       swIDBank,
+				Name:     "银行账户",
+				PersonID: personID,
+			}
 		}
 
 		newOrg.Persons[personID] = model.Person{
 			ID:           personID,
 			Name:         name,
 			Groups:       nil,
-			SubWalletIDs: []uint64{defaultWalletID, swIDAlipay, swIDWeChat, swIDBank},
+			SubWalletIDs: walletIDs,
 		}
 
 		return
