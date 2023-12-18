@@ -1,11 +1,11 @@
 package server
 
 import (
-	"github.com/s-min-sys/lifecostbe/internal/storage"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/s-min-sys/lifecostbe/internal/model"
+	"github.com/s-min-sys/lifecostbe/internal/storage"
 )
 
 func (s *Server) handleGetBaseInfos(c *gin.Context) {

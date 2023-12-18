@@ -7,6 +7,7 @@ type Code int
 const (
 	CodeSuccess Code = iota
 	CodeGroupNameExists
+	CodeWalletNameExists
 )
 
 const (

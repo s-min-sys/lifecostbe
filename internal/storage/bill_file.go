@@ -39,9 +39,12 @@ func NewBillFile(dir string, base string, logger l.Wrapper) BillFile {
 }
 
 type streamFile struct {
-	lock         sync.Mutex
-	file         *os.File
-	lastAccessAt time.Time
+	lock           sync.Mutex
+	file           *os.File
+	key            string
+	filePath       string
+	latestRecordAt time.Time
+	lastAccessAt   time.Time
 }
 
 type billFileImpl struct {
@@ -65,7 +68,7 @@ func (impl *billFileImpl) getFilePath(at time.Time) string {
 	return filepath.Join(impl.dir, impl.getFileName(at.Format("20060102")))
 }
 
-func (impl *billFileImpl) getFile(at time.Time) *streamFile {
+func (impl *billFileImpl) getFile(at time.Time) (file *streamFile, err error) {
 	impl.lock.Lock()
 
 	defer impl.lock.Unlock()
@@ -76,24 +79,51 @@ func (impl *billFileImpl) getFile(at time.Time) *streamFile {
 	if ok {
 		file.lastAccessAt = time.Now()
 
-		return file
+		return
 	}
 
 	filePath := impl.getFilePath(at)
 
 	_ = pathutils.MustDirOfFileExists(filePath)
 
+	bills, _ := impl.readFileBills(filePath)
+
+	latestRecordAt := time.Now()
+
+	_ = os.RemoveAll(filePath)
+
 	rawFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
 	if err != nil {
-		return nil
+		return
 	}
 
-	impl.files[key] = &streamFile{
-		file:         rawFile,
-		lastAccessAt: time.Now(),
+	if len(bills) > 0 {
+		slices.SortFunc(bills, func(a, b model.GroupBill) int {
+			if a.At == b.At {
+				return 0
+			}
+
+			if a.At < b.At {
+				return -1
+			}
+
+			return 1
+		})
+
+		latestRecordAt, err = impl.writeAllBillsOnFile(rawFile, bills)
 	}
 
-	return impl.files[key]
+	file = &streamFile{
+		file:           rawFile,
+		key:            key,
+		filePath:       filePath,
+		latestRecordAt: latestRecordAt,
+		lastAccessAt:   time.Now(),
+	}
+
+	impl.files[key] = file
+
+	return
 }
 
 func (impl *billFileImpl) AddBill(bill model.GroupBill) error {
@@ -105,24 +135,104 @@ func (impl *billFileImpl) AddBill(bill model.GroupBill) error {
 
 	bill.ID = fmt.Sprintf("%s%d", at.Format("20060102"), snowflake.ID())
 
-	sf := impl.getFile(at)
-	if sf == nil {
+	sf, err := impl.getFile(at)
+	if err != nil {
+		impl.logger.WithFields(l.ErrorField(err), l.AnyField("at", at)).Error("get File failed")
+
 		return commerr.ErrInternal
 	}
-
-	d, err := json.Marshal(bill)
-	if err != nil {
-		return err
-	}
-
-	line := string(d) + "\n"
 
 	sf.lock.Lock()
 	defer sf.lock.Unlock()
 
-	_, err = sf.file.Write([]byte(line))
+	if sf.latestRecordAt.Before(at) {
+		var d []byte
+
+		d, err = json.Marshal(bill)
+		if err != nil {
+			impl.logger.WithFields(l.ErrorField(err)).Error("marshal bill failed")
+
+			return err
+		}
+
+		line := string(d) + "\n"
+
+		_, err = sf.file.Write([]byte(line))
+		if err != nil {
+			impl.logger.WithFields(l.ErrorField(err)).Error("write file failed")
+
+			return err
+		}
+
+		sf.latestRecordAt = at
+
+		return nil
+	}
+
+	_ = sf.file.Close()
+
+	bills, err := impl.readFileBills(sf.filePath)
+	if err != nil {
+		impl.logger.WithFields(l.ErrorField(err), l.StringField("filePath", sf.filePath)).
+			Error("read bills failed")
+
+		return err
+	}
+
+	bills = append(bills, bill)
+
+	_ = os.RemoveAll(sf.filePath)
+
+	slices.SortFunc(bills, func(a, b model.GroupBill) int {
+		if a.At == b.At {
+			return 0
+		}
+
+		if a.At < b.At {
+			return -1
+		}
+
+		return 1
+	})
+
+	rawFile, err := os.OpenFile(sf.filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
+	if err != nil {
+		delete(impl.files, sf.key)
+
+		impl.logger.WithFields(l.ErrorField(err), l.StringField("file", sf.filePath)).
+			Error("reopen file failed")
+
+		return err
+	}
+
+	sf.file = rawFile
+
+	sf.latestRecordAt, err = impl.writeAllBillsOnFile(sf.file, bills)
 
 	return err
+}
+
+func (impl *billFileImpl) writeAllBillsOnFile(file *os.File, bills []model.GroupBill) (latestRecordAt time.Time,
+	err error) {
+	var d []byte
+
+	for _, b := range bills {
+		d, err = json.Marshal(b)
+		if err != nil {
+			return
+		}
+
+		line := string(d) + "\n"
+
+		_, err = file.Write([]byte(line))
+		if err != nil {
+			return
+		}
+
+		latestRecordAt = time.Unix(b.At, 0)
+	}
+
+	return
 }
 
 func (impl *billFileImpl) readFileBills(path string) (bills []model.GroupBill, err error) {
@@ -208,7 +318,6 @@ func (impl *billFileImpl) GetBills(startDate, finishDate string) (bills []model.
 		}
 
 		if finishDateFileName != "" {
-
 			if file.Name() > finishDateFileName {
 				continue
 			}
@@ -309,6 +418,8 @@ func (impl *billFileImpl) GetBillsByID(id string, count int, dirNew bool) (bills
 					} else {
 						dayBills = dayBills[:y]
 					}
+
+					break
 				}
 			}
 		}

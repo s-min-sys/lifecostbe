@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/s-min-sys/lifecostbe/internal/config"
 	"github.com/s-min-sys/lifecostbe/internal/server"
@@ -24,7 +23,7 @@ func main() {
 	cfg.AccountConfig.PasswordHashIterCount = 100
 
 	d, _ := yaml.Marshal(cfg)
-	fmt.Println(d)
+	logger.Debug(string(d))
 
 	server.NewServer(context.Background(), nil, &cfg, logger).Wait()
 }

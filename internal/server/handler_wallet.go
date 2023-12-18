@@ -1,10 +1,13 @@
 package server
 
 import (
+	"errors"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/s-min-sys/lifecostbe/internal/model"
+	"github.com/sgostarter/i/commerr"
 	"github.com/sgostarter/libeasygo/cuserror"
-	"net/http"
 )
 
 func (s *Server) handleWalletNew(c *gin.Context) {
@@ -46,8 +49,13 @@ func (s *Server) handleWalletNewInner(c *gin.Context) (walletID uint64, code Cod
 
 	walletID, err = s.storage.NewWallet(req.Name, uid)
 	if err != nil {
-		code = CodeInternalError
-		msg = err.Error()
+		if errors.Is(err, commerr.ErrAlreadyExists) {
+			code = CodeWalletNameExists
+			msg = "钱包已经存在"
+		} else {
+			code = CodeInternalError
+			msg = err.Error()
+		}
 
 		return
 	}
@@ -129,8 +137,12 @@ func (s *Server) handleWalletNewByDirInner(c *gin.Context) (code Code, msg strin
 
 	_, err = s.storage.NewWallet(req.NewWalletName, merchantPersonID)
 	if err != nil {
-		code = CodeInternalError
-		msg = err.Error()
+		if errors.Is(err, commerr.ErrAlreadyExists) {
+			code = CodeWalletNameExists
+		} else {
+			code = CodeInternalError
+			msg = err.Error()
+		}
 
 		return
 	}

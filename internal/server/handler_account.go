@@ -54,7 +54,7 @@ func (s *Server) handleRegisterInner(c *gin.Context) (uid uint64, token string, 
 		return
 	}
 
-	_, _, _ = s.storage.NewPersonEx(req.UserName, uid)
+	_, _, _ = s.storage.NewPersonEx(req.UserName, uid) // nolint: dogsled
 
 	code = CodeSuccess
 
@@ -114,6 +114,7 @@ func (s *Server) handleLogout(c *gin.Context) {
 	c.JSON(http.StatusOK, respWrapper)
 }
 
+// nolint: unparam
 func (s *Server) getAndCheckToken(c *gin.Context) (token string, uid uint64, userName string, code Code, msg string) {
 	token = c.GetHeader("token")
 	if token == "" {
@@ -134,9 +135,8 @@ func (s *Server) getAndCheckToken(c *gin.Context) (token string, uid uint64, use
 	return
 }
 
-func (s *Server) handleLogoutInner(c *gin.Context) (code_ Code, msg string) {
-	code_ = CodeSuccess
-
+// nolint: unparam
+func (s *Server) handleLogoutInner(c *gin.Context) (_ Code, msg string) {
 	token, _, _, code, msg := s.getAndCheckToken(c)
 	if code != CodeSuccess {
 		return

@@ -247,3 +247,17 @@ func (req *WalletNewByDirRequest) Valid() bool {
 	return req.NewWalletName != "" &&
 		(req.Dir == model.CostDirIn || req.Dir == model.CostDirOut)
 }
+
+type BatchRecordRequest struct {
+	Records []RecordRequest `json:"records"`
+}
+
+func (req *BatchRecordRequest) Valid() bool {
+	for idx := range req.Records {
+		if !req.Records[idx].Valid() {
+			return false
+		}
+	}
+
+	return true
+}

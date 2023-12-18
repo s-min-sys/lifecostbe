@@ -1,11 +1,12 @@
 package server
 
 import (
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/now"
 	"github.com/s-min-sys/lifecostbe/internal/model"
-	"net/http"
-	"time"
 )
 
 func (s *Server) handleStatistics(c *gin.Context) {

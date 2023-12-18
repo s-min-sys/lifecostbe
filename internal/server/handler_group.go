@@ -2,13 +2,13 @@ package server
 
 import (
 	"errors"
-	"github.com/godruoyi/go-snowflake"
-	"github.com/sgostarter/i/commerr"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/godruoyi/go-snowflake"
+	"github.com/sgostarter/i/commerr"
 )
 
 func (s *Server) handleGroupNew(c *gin.Context) {
@@ -55,6 +55,7 @@ func (s *Server) handleGroupNewInner(c *gin.Context) (groupID uint64, code Code,
 		} else {
 			code = CodeInternalError
 		}
+
 		msg = err.Error()
 
 		return

@@ -2,6 +2,7 @@ package server
 
 func (s *Server) getGroupID4Person(personID uint64, groupIDStr string) (selectedGroupID uint64, ok bool) {
 	var groupID uint64
+
 	var err error
 
 	if groupIDStr != "" {

@@ -2,13 +2,13 @@ package server
 
 import (
 	"fmt"
-	"github.com/s-min-sys/lifecostbe/internal/model"
-	"golang.org/x/exp/slices"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/s-min-sys/lifecostbe/internal/model"
 	"github.com/sgostarter/i/l"
+	"golang.org/x/exp/slices"
 )
 
 func (s *Server) handleRecord(c *gin.Context) {
@@ -62,8 +62,10 @@ func (s *Server) handleRecordInner(c *gin.Context) (code Code, msg string) {
 		return
 	}
 
-	fmt.Println(time.Unix(req.At, 0))
+	return s.recordSingle(uid, req)
+}
 
+func (s *Server) recordSingle(uid uint64, req RecordRequest) (code Code, msg string) {
 	fromWallet, err := s.storage.GetWallet(req.DFromSubWalletID)
 	if err != nil {
 		code = CodeInvalidArgs
@@ -107,7 +109,6 @@ func (s *Server) handleRecordInner(c *gin.Context) (code Code, msg string) {
 
 			return
 		}
-
 	}
 
 	if toWallet.PersonID == uid {
@@ -152,6 +153,7 @@ func (s *Server) handleRecordInner(c *gin.Context) (code Code, msg string) {
 	for _, groupID := range groupIDs {
 		inFromGroup := slices.Contains(fromPersonGroupIDs, groupID)
 		inToGroup := slices.Contains(toPersonGroupIDs, groupID)
+
 		if (inFromGroup && inToGroup) || (meInFrom && meInTo) {
 			groupBill.CostDir = model.CostDirInGroup
 		} else {
@@ -226,6 +228,7 @@ func (s *Server) handleGetRecordsInner(c *gin.Context) (voBills []Bill, hasMore 
 
 			return
 		}
+
 		groupID = groupIDs[0]
 	} else {
 		groupID, err = idS2N(req.GroupID)
@@ -272,6 +275,53 @@ func (s *Server) handleGetRecordsInner(c *gin.Context) (voBills []Bill, hasMore 
 	if withStatistics {
 		day, week, month, _ = s.doStatistics(groupID)
 	}
+
+	return
+}
+
+func (s *Server) handleBatchRecord(c *gin.Context) {
+	respWrapper := &ResponseWrapper{}
+
+	respWrapper.Apply(s.handleBatchRecordInner(c))
+
+	c.JSON(http.StatusOK, respWrapper)
+}
+
+func (s *Server) handleBatchRecordInner(c *gin.Context) (code Code, msg string) {
+	_, uid, _, code, msg := s.getAndCheckToken(c)
+	if code != CodeSuccess {
+		return
+	}
+
+	var req BatchRecordRequest
+
+	err := c.BindJSON(&req)
+	if err != nil {
+		code = CodeProtocol
+		msg = err.Error()
+
+		return
+	}
+
+	if !req.Valid() {
+		code = CodeMissArgs
+
+		return
+	}
+
+	var allMsg string
+
+	for _, r := range req.Records {
+		code, msg = s.recordSingle(uid, r)
+		if code != CodeSuccess {
+			s.logger.WithFields(l.ErrorField(err), l.StringField("msg", msg)).Error("record failed")
+
+			allMsg += msg + "\n"
+		}
+	}
+
+	code = CodeSuccess
+	msg = allMsg
 
 	return
 }

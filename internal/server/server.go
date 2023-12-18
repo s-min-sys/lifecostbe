@@ -75,7 +75,7 @@ func JSONMiddleware() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) httpRoutine(ctx context.Context, exiting func() bool) {
+func (s *Server) httpRoutine(_ context.Context, _ func() bool) {
 	logger := s.logger.WithFields(l.StringField(l.RoutineKey, "httpRoutine"))
 
 	logger.Debug("enter")
@@ -103,6 +103,7 @@ func (s *Server) httpRoutine(ctx context.Context, exiting func() bool) {
 	r.POST("/logout", s.handleLogout)
 	r.GET("/base-infos", s.handleGetBaseInfos)
 	r.POST("/record", s.handleRecord)
+	r.POST("/record/batch", s.handleBatchRecord)
 	r.POST("/records", s.handleGetRecords)
 	r.GET("/statistics", s.handleStatistics)
 
@@ -120,6 +121,7 @@ func (s *Server) httpRoutine(ctx context.Context, exiting func() bool) {
 		}
 
 		logger.WithFields(l.StringField("listen", listen)).Debug("start listen")
+
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.WithFields(l.ErrorField(err), l.StringField("listen", listen)).Error("listen failed")
 		}
