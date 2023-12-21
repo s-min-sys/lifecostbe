@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/s-min-sys/lifecostbe/internal/model"
 	"github.com/sgostarter/i/l"
+	"github.com/sgostarter/libcomponents/statistic/memdate/ex"
 	"golang.org/x/exp/slices"
 )
 
@@ -167,6 +168,21 @@ func (s *Server) recordSingle(uid uint64, req RecordRequest) (code Code, msg str
 		if e := s.storage.Record(groupID, groupBill); e != nil {
 			s.logger.WithFields(l.ErrorField(e)).Error("record failed")
 		}
+
+		curD := bill2LifeCostData(groupBill)
+		if curD.T == ex.ListCostDataNon {
+			continue
+		}
+
+		if len(req.DLabelIDs) > 0 {
+			for _, labelID := range req.DLabelIDs {
+				s.stat.SetDayData(billStatKey(groupID, labelID), time.Unix(groupBill.At, 0), curD)
+			}
+		} else {
+			s.stat.SetDayData(billStatKey(groupID, 0), time.Unix(groupBill.At, 0), curD)
+		}
+
+		s.stat.SetDayData(billStatKey(groupID, groupID), time.Unix(groupBill.At, 0), curD)
 	}
 
 	code = CodeSuccess
@@ -177,14 +193,16 @@ func (s *Server) recordSingle(uid uint64, req RecordRequest) (code Code, msg str
 func (s *Server) handleGetRecords(c *gin.Context) {
 	respWrapper := &ResponseWrapper{}
 
-	bills, hasMore, day, week, month, code, msg := s.handleGetRecordsInner(c)
+	bills, hasMore, dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics, code, msg := s.handleGetRecordsInner(c)
 	if code == CodeSuccess {
 		respWrapper.Resp = GetRecordsResponse{
-			Bills:           bills,
-			HasMore:         hasMore,
-			DayStatistics:   day,
-			WeekStatistics:  week,
-			MonthStatistics: month,
+			Bills:            bills,
+			HasMore:          hasMore,
+			DayStatistics:    dayStatistics,
+			WeekStatistics:   weekStatistics,
+			MonthStatistics:  monthStatistics,
+			SeasonStatistics: seasonStatistics,
+			YearStatistics:   yearStatistics,
 		}
 	}
 
@@ -194,7 +212,7 @@ func (s *Server) handleGetRecords(c *gin.Context) {
 }
 
 func (s *Server) handleGetRecordsInner(c *gin.Context) (voBills []Bill, hasMore bool,
-	day, week, month Statistics, code Code, msg string) {
+	dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics Statistics, code Code, msg string) {
 	_, uid, _, code, msg := s.getAndCheckToken(c)
 	if code != CodeSuccess {
 		return
@@ -273,7 +291,7 @@ func (s *Server) handleGetRecordsInner(c *gin.Context) (voBills []Bill, hasMore 
 	}
 
 	if withStatistics {
-		day, week, month, _ = s.doStatistics(groupID)
+		dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics = s.doStatistics(groupID)
 	}
 
 	return

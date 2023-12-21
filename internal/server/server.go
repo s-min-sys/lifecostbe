@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/gzip"
@@ -15,11 +16,17 @@ import (
 	"github.com/sgostarter/i/l"
 	"github.com/sgostarter/libcomponents/account"
 	"github.com/sgostarter/libcomponents/account/impls/fmaccountstorage"
+	"github.com/sgostarter/libcomponents/statistic/memdate"
+	"github.com/sgostarter/libcomponents/statistic/memdate/ex"
 	"github.com/sgostarter/libeasygo/routineman"
+	"github.com/sgostarter/libeasygo/stg/fs/rawfs"
+	"github.com/sgostarter/libeasygo/stg/mwf"
 )
 
 const (
 	dataRoot = "data"
+
+	statFileName = "stats.dat"
 )
 
 type Server struct {
@@ -29,6 +36,7 @@ type Server struct {
 
 	accounts account.Account
 	storage  storage.Storage
+	stat     *memdate.Statistics[string, ex.LifeCostTotalData, ex.LifeCostData, ex.LifeCostDataTrans, mwf.Serial, mwf.Lock]
 }
 
 func NewServer(ctx context.Context, routineMan routineman.RoutineMan, cfg *config.Config, logger l.Wrapper) *Server {
@@ -53,6 +61,10 @@ func NewServer(ctx context.Context, routineMan routineman.RoutineMan, cfg *confi
 		accounts: account.NewAccount(fmaccountstorage.NewFMAccountStorageEx(dataRoot, nil, cfg.Debug),
 			&cfg.AccountConfig, logger),
 		storage: storage.NewStorage(dataRoot, cfg.Debug, logger),
+		stat: memdate.NewMemDateStatistics[string, ex.LifeCostTotalData, ex.LifeCostData,
+			ex.LifeCostDataTrans, mwf.Serial, mwf.Lock](&mwf.JSONSerial{}, &sync.RWMutex{}, time.Local,
+			statFileName,
+			rawfs.NewFSStorage(dataRoot)),
 	}
 
 	s.init()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 
 	"github.com/s-min-sys/lifecostbe/internal/config"
 	"github.com/s-min-sys/lifecostbe/internal/server"
@@ -13,8 +14,24 @@ import (
 )
 
 func main() {
+	var reBuild bool
+
+	flag.BoolVar(&reBuild, "re-build", false, "rebuild statistics")
+	flag.Parse()
+
 	logger := l.NewWrapper(liblogrus.NewLogrusEx(logrus.New()))
 	logger.GetLogger().SetLevel(l.LevelDebug)
+
+	if reBuild {
+		err := server.RebuildBills()
+		if err != nil {
+			logger.WithFields(l.ErrorField(err)).Fatal("rebuild bills failed")
+		} else {
+			logger.Info("rebuild bills success")
+		}
+
+		return
+	}
 
 	var cfg config.Config
 	_, _ = libconfig.Load("config.yaml", &cfg)

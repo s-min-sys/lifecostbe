@@ -200,11 +200,13 @@ type Bill struct {
 }
 
 type GetRecordsResponse struct {
-	Bills           []Bill     `json:"bills"`
-	HasMore         bool       `json:"hasMore"`
-	DayStatistics   Statistics `json:"dayStatistics"`
-	WeekStatistics  Statistics `json:"weekStatistics"`
-	MonthStatistics Statistics `json:"monthStatistics"`
+	Bills            []Bill     `json:"bills"`
+	HasMore          bool       `json:"hasMore"`
+	DayStatistics    Statistics `json:"dayStatistics"`
+	WeekStatistics   Statistics `json:"weekStatistics"`
+	MonthStatistics  Statistics `json:"monthStatistics"`
+	SeasonStatistics Statistics `json:"seasonStatistics"`
+	YearStatistics   Statistics `json:"yearStatistics"`
 }
 
 type Statistics struct {
@@ -217,9 +219,11 @@ type Statistics struct {
 }
 
 type StatisticsResponse struct {
-	DayStatistics   Statistics `json:"dayStatistics"`
-	WeekStatistics  Statistics `json:"weekStatistics"`
-	MonthStatistics Statistics `json:"monthStatistics"`
+	DayStatistics    Statistics `json:"dayStatistics"`
+	WeekStatistics   Statistics `json:"weekStatistics"`
+	MonthStatistics  Statistics `json:"monthStatistics"`
+	SeasonStatistics Statistics `json:"seasonStatistics"`
+	YearStatistics   Statistics `json:"yearStatistics"`
 }
 
 type GroupEnterCodesRequest struct {
