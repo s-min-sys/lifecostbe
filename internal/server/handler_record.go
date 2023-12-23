@@ -230,6 +230,10 @@ func (s *Server) handleGetRecordsInner(c *gin.Context) (voBills []Bill, hasMore 
 		return
 	}
 
+	if !withStatistics {
+		withStatistics = req.RequestStat
+	}
+
 	if !req.Valid() {
 		code = CodeMissArgs
 
@@ -291,7 +295,25 @@ func (s *Server) handleGetRecordsInner(c *gin.Context) (voBills []Bill, hasMore 
 	}
 
 	if withStatistics {
-		dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics = s.doStatistics(groupID)
+		fnMergeStatistics := func(totalStat *Statistics, curStat Statistics) {
+			totalStat.OutgoingCount += curStat.OutgoingCount
+			totalStat.OutgoingAmount += curStat.OutgoingAmount
+			totalStat.IncomingCount += curStat.IncomingCount
+			totalStat.IncomingAmount += curStat.IncomingAmount
+		}
+
+		if len(req.DStatLabelIDs) == 0 {
+			dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics = s.doStatistics(groupID, groupID)
+		} else {
+			for _, labelID := range req.DStatLabelIDs {
+				d, w, m, s, y := s.doStatistics(groupID, labelID)
+				fnMergeStatistics(&dayStatistics, d)
+				fnMergeStatistics(&weekStatistics, w)
+				fnMergeStatistics(&monthStatistics, m)
+				fnMergeStatistics(&seasonStatistics, s)
+				fnMergeStatistics(&yearStatistics, y)
+			}
+		}
 	}
 
 	return

@@ -45,12 +45,12 @@ func (s *Server) handleStatisticsInner(c *gin.Context) (dayStatistics, weekStati
 
 	groupID := groupIDs[0]
 
-	dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics = s.doStatistics(groupID)
+	dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics = s.doStatistics(groupID, groupID)
 
 	return
 }
 
-func (s *Server) doStatistics(groupID uint64) (dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics Statistics) {
+func (s *Server) doStatistics(groupID uint64, labelID uint64) (dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics Statistics) {
 	timeNow := time.Now()
 
 	fnTotalD2Statistic := func(totalD ex.LifeCostTotalData) Statistics {
@@ -62,27 +62,27 @@ func (s *Server) doStatistics(groupID uint64) (dayStatistics, weekStatistics, mo
 		}
 	}
 
-	totalD, exists := s.stat.GetYearOn(billStatKey(groupID, groupID), timeNow)
+	totalD, exists := s.stat.GetYearOn(billStatKey(groupID, labelID), timeNow)
 	if exists {
 		yearStatistics = fnTotalD2Statistic(totalD)
 	}
 
-	totalD, exists = s.stat.GetSeasonOn(billStatKey(groupID, groupID), timeNow)
+	totalD, exists = s.stat.GetSeasonOn(billStatKey(groupID, labelID), timeNow)
 	if exists {
 		seasonStatistics = fnTotalD2Statistic(totalD)
 	}
 
-	totalD, exists = s.stat.GetMonthOn(billStatKey(groupID, groupID), timeNow)
+	totalD, exists = s.stat.GetMonthOn(billStatKey(groupID, labelID), timeNow)
 	if exists {
 		monthStatistics = fnTotalD2Statistic(totalD)
 	}
 
-	totalD, exists = s.stat.GetWeekOn(billStatKey(groupID, groupID), timeNow)
+	totalD, exists = s.stat.GetWeekOn(billStatKey(groupID, labelID), timeNow)
 	if exists {
 		weekStatistics = fnTotalD2Statistic(totalD)
 	}
 
-	totalD, exists = s.stat.GetDayOn(billStatKey(groupID, groupID), timeNow)
+	totalD, exists = s.stat.GetDayOn(billStatKey(groupID, labelID), timeNow)
 	if exists {
 		dayStatistics = fnTotalD2Statistic(totalD)
 	}

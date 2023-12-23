@@ -170,9 +170,21 @@ type GetRecordsRequest struct {
 	PageCount  int    `json:"pageCount"`
 	GroupID    string `json:"groupID"`
 	NewForward bool   `json:"newForward"`
+
+	RequestStat  bool     `json:"requestStat"`
+	StatLabelIDs []string `json:"statLabelIDs"` // empty: all; [] 0: no label record; labelID: label id record
+
+	DStatLabelIDs []uint64 `json:"-"`
 }
 
 func (req *GetRecordsRequest) Valid() bool {
+	req.DStatLabelIDs = make([]uint64, 0, len(req.StatLabelIDs))
+
+	for _, labelID := range req.StatLabelIDs {
+		dLabelID, _ := idS2N(labelID)
+		req.DStatLabelIDs = append(req.DStatLabelIDs, dLabelID)
+	}
+
 	return true
 }
 
