@@ -64,7 +64,25 @@ func readFileBills(path string) (bills []model.GroupBill, err error) {
 	return
 }
 
-func bill2LifeCostData(bill model.GroupBill) ex.LifeCostData {
+func bill2LifeCostData4Delete(bill model.GroupBill) ex.LifeCostData {
+	curD := ex.LifeCostData{
+		T: ex.ListCostDataDelete,
+	}
+
+	if bill.CostDir == model.CostDirIn {
+		curD.EarnCount = 1
+		curD.EarnAmount = bill.Amount
+	} else if bill.CostDir == model.CostDirOut {
+		curD.ConsumeCount = 1
+		curD.ConsumeAmount = bill.Amount
+	} else {
+		curD.T = ex.ListCostDataNon
+	}
+
+	return curD
+}
+
+func bill2LifeCostData4Add(bill model.GroupBill) ex.LifeCostData {
 	curD := ex.LifeCostData{
 		T: ex.ListCostDataAdd,
 	}
@@ -117,7 +135,7 @@ func RebuildBills() (err error) {
 				continue
 			}
 
-			curD := bill2LifeCostData(bill)
+			curD := bill2LifeCostData4Add(bill)
 
 			if len(bill.LabelIDs) > 0 {
 				for _, labelID := range bill.LabelIDs {

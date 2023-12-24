@@ -8,7 +8,7 @@ require (
 	github.com/gin-gonic/gin v1.9.1
 	github.com/godruoyi/go-snowflake v0.0.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/sgostarter/libcomponents v0.0.10
+	github.com/sgostarter/libcomponents v0.0.11
 	github.com/sgostarter/libconfig v0.0.1
 	github.com/sgostarter/libeasygo v0.1.60
 	github.com/sgostarter/liblogrus v0.0.9

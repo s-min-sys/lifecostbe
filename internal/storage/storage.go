@@ -61,6 +61,8 @@ type Storage interface {
 	GetGroupLabelName(labelID, groupID uint64) (name string, err error)
 
 	Record(groupID uint64, groupBill model.GroupBill) error
+	GetBill(groupID uint64, billID string) (bill model.GroupBill, err error)
+	DeleteRecord(groupID uint64, recordID string) error
 	GetBills(groupID uint64) ([]model.GroupBill, error)
 	GetBillsEx(groupID uint64, startYear, startMonth, startDay, finishYear,
 		finishMonth, finishDay int) ([]model.GroupBill, error)
@@ -827,6 +829,14 @@ func (impl *storageImpl) Record(groupID uint64, groupBill model.GroupBill) error
 	return impl.getGroupBills(groupID).AddBill(groupBill)
 }
 
+func (impl *storageImpl) GetBill(groupID uint64, billID string) (bill model.GroupBill, err error) {
+	return impl.getGroupBills(groupID).GetBill(billID)
+}
+
+func (impl *storageImpl) DeleteRecord(groupID uint64, recordID string) error {
+	return impl.getGroupBills(groupID).DeleteRecord(recordID)
+}
+
 func (impl *storageImpl) GetBills(groupID uint64) ([]model.GroupBill, error) {
 	return impl.GetBillsEx(groupID, 0, 0, 0, 0, 0, 0)
 }
@@ -847,7 +857,7 @@ func (impl *storageImpl) GetBillsEx(groupID uint64, startYear, startMonth, start
 }
 
 func (impl *storageImpl) GetBillsByID(groupID uint64, id string, count int, dirNew bool) ([]model.GroupBill, bool, error) {
-	return impl.getGroupBills(groupID).GetBillsByID(id, count, dirNew)
+	return impl.getGroupBills(groupID).ListBills(id, count, dirNew)
 }
 
 func (impl *storageImpl) key4GroupEnterCode(enterCode string) string {

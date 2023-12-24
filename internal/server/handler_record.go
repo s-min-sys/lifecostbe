@@ -12,6 +12,73 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+func (s *Server) handleDeleteRecord(c *gin.Context) {
+	respWrapper := &ResponseWrapper{}
+
+	respWrapper.Apply(s.handleDeleteRecordInner(c))
+
+	c.JSON(http.StatusOK, respWrapper)
+}
+
+func (s *Server) handleDeleteRecordInner(c *gin.Context) (code Code, msg string) {
+	_, uid, _, code, msg := s.getAndCheckToken(c)
+	if code != CodeSuccess {
+		return
+	}
+
+	recordID := c.Param("id")
+	if recordID == "" {
+		code = CodeInternalError
+		msg = "确实记录ID"
+
+		return
+	}
+
+	groupIDs, err := s.storage.GetPersonGroupsIDs(uid)
+	if err != nil {
+		code = CodeInternalError
+		msg = err.Error()
+
+		return
+	}
+
+	for _, groupID := range groupIDs {
+		var groupBill model.GroupBill
+
+		groupBill, err = s.storage.GetBill(groupID, recordID)
+		if err != nil {
+			s.logger.WithFields(l.ErrorField(err), l.UInt64Field("groupID", groupID),
+				l.StringField("recordID", recordID)).Error("no bill")
+
+			continue
+		}
+
+		err = s.storage.DeleteRecord(groupID, recordID)
+		if err != nil {
+			s.logger.WithFields(l.ErrorField(err)).Error("delete record failed")
+
+			continue
+		}
+
+		curD := bill2LifeCostData4Delete(groupBill)
+		if curD.T == ex.ListCostDataNon {
+			continue
+		}
+
+		if len(groupBill.LabelIDs) > 0 {
+			for _, labelID := range groupBill.LabelIDs {
+				s.stat.SetDayData(billStatKey(groupID, labelID), time.Unix(groupBill.At, 0), curD)
+			}
+		} else {
+			s.stat.SetDayData(billStatKey(groupID, 0), time.Unix(groupBill.At, 0), curD)
+		}
+
+		s.stat.SetDayData(billStatKey(groupID, groupID), time.Unix(groupBill.At, 0), curD)
+	}
+
+	return
+}
+
 func (s *Server) handleRecord(c *gin.Context) {
 	respWrapper := &ResponseWrapper{}
 
@@ -169,7 +236,7 @@ func (s *Server) recordSingle(uid uint64, req RecordRequest) (code Code, msg str
 			s.logger.WithFields(l.ErrorField(e)).Error("record failed")
 		}
 
-		curD := bill2LifeCostData(groupBill)
+		curD := bill2LifeCostData4Add(groupBill)
 		if curD.T == ex.ListCostDataNon {
 			continue
 		}

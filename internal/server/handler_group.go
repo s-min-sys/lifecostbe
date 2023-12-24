@@ -247,3 +247,37 @@ func (s *Server) handleGroupJoinInner(c *gin.Context) (code Code, msg string) {
 
 	return
 }
+
+// nolint: unused
+func (s *Server) inGroupEx(uid, groupID uint64) (suggestGroupID uint64, ok bool) {
+	groupIDs, _ := s.storage.GetPersonGroupsIDs(uid)
+	if len(groupIDs) == 0 {
+		return
+	}
+
+	suggestGroupID = groupID
+	if suggestGroupID == 0 {
+		suggestGroupID = groupIDs[0]
+	}
+
+	for _, d := range groupIDs {
+		if d == groupID {
+			ok = true
+
+			return
+		}
+	}
+
+	return
+}
+
+// nolint: unused
+func (s *Server) inGroup(uid, groupID uint64) bool {
+	if groupID == 0 {
+		return false
+	}
+
+	_, ok := s.inGroupEx(uid, groupID)
+
+	return ok
+}

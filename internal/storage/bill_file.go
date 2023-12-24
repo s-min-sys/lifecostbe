@@ -21,8 +21,10 @@ import (
 
 type BillFile interface {
 	AddBill(bill model.GroupBill) error
+	GetBill(billID string) (bill model.GroupBill, err error)
+	DeleteRecord(billID string) (err error)
 	GetBills(startDate, finishDate string) ([]model.GroupBill, error)
-	GetBillsByID(id string, count int, dirNew bool) (bills []model.GroupBill, hasMore bool, err error)
+	ListBills(id string, count int, dirNew bool) (bills []model.GroupBill, hasMore bool, err error)
 }
 
 func NewBillFile(dir string, base string, logger l.Wrapper) BillFile {
@@ -64,16 +66,18 @@ func (impl *billFileImpl) getFileName(date8 string) string {
 	return filepath.Join(impl.base + "-" + date8)
 }
 
-func (impl *billFileImpl) getFilePath(at time.Time) string {
-	return filepath.Join(impl.dir, impl.getFileName(at.Format("20060102")))
+func (impl *billFileImpl) getFilePath(key string) string {
+	return filepath.Join(impl.dir, impl.getFileName(key))
 }
 
-func (impl *billFileImpl) getFile(at time.Time) (file *streamFile, err error) {
+func (impl *billFileImpl) getFileAt(at time.Time) (file *streamFile, err error) {
+	return impl.getFileByKey(impl.getFileKey(at))
+}
+
+func (impl *billFileImpl) getFileByKey(key string) (file *streamFile, err error) {
 	impl.lock.Lock()
 
 	defer impl.lock.Unlock()
-
-	key := impl.getFileKey(at)
 
 	file, ok := impl.files[key]
 	if ok {
@@ -82,7 +86,7 @@ func (impl *billFileImpl) getFile(at time.Time) (file *streamFile, err error) {
 		return
 	}
 
-	filePath := impl.getFilePath(at)
+	filePath := impl.getFilePath(key)
 
 	_ = pathutils.MustDirOfFileExists(filePath)
 
@@ -135,7 +139,7 @@ func (impl *billFileImpl) AddBill(bill model.GroupBill) error {
 
 	bill.ID = fmt.Sprintf("%s%d", at.Format("20060102"), snowflake.ID())
 
-	sf, err := impl.getFile(at)
+	sf, err := impl.getFileAt(at)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err), l.AnyField("at", at)).Error("get File failed")
 
@@ -210,6 +214,113 @@ func (impl *billFileImpl) AddBill(bill model.GroupBill) error {
 	sf.latestRecordAt, err = impl.writeAllBillsOnFile(sf.file, bills)
 
 	return err
+}
+
+func (impl *billFileImpl) GetBill(billID string) (bill model.GroupBill, err error) {
+	if len(billID) <= 8 {
+		err = commerr.ErrInvalidArgument
+
+		return
+	}
+
+	key := billID[:8]
+
+	sf, err := impl.getFileByKey(key)
+	if err != nil {
+		impl.logger.WithFields(l.ErrorField(err), l.AnyField("key", key)).Error("get File failed")
+
+		err = commerr.ErrInternal
+
+		return
+	}
+
+	bills, err := impl.readFileBills(sf.filePath)
+	if err != nil {
+		impl.logger.WithFields(l.ErrorField(err), l.StringField("filePath", sf.filePath)).
+			Error("read bills failed")
+
+		return
+	}
+
+	for _, groupBill := range bills {
+		if groupBill.ID == billID {
+			bill = groupBill
+
+			return
+		}
+	}
+
+	err = commerr.ErrNotFound
+
+	return
+}
+
+func (impl *billFileImpl) DeleteRecord(billID string) (err error) {
+	if len(billID) <= 8 {
+		err = commerr.ErrInvalidArgument
+
+		return
+	}
+
+	key := billID[:8]
+
+	sf, err := impl.getFileByKey(key)
+	if err != nil {
+		impl.logger.WithFields(l.ErrorField(err), l.AnyField("key", key)).Error("get File failed")
+
+		return commerr.ErrInternal
+	}
+
+	sf.lock.Lock()
+	defer sf.lock.Unlock()
+
+	_ = sf.file.Close()
+
+	bills, err := impl.readFileBills(sf.filePath)
+	if err != nil {
+		impl.logger.WithFields(l.ErrorField(err), l.StringField("filePath", sf.filePath)).
+			Error("read bills failed")
+
+		return err
+	}
+
+	_ = os.RemoveAll(sf.filePath)
+
+	for idx := 0; idx < len(bills); idx++ {
+		if bills[idx].ID == billID {
+			bills = slices.Delete(bills, idx, idx+1)
+
+			break
+		}
+	}
+
+	slices.SortFunc(bills, func(a, b model.GroupBill) int {
+		if a.At == b.At {
+			return 0
+		}
+
+		if a.At < b.At {
+			return -1
+		}
+
+		return 1
+	})
+
+	rawFile, err := os.OpenFile(sf.filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
+	if err != nil {
+		delete(impl.files, sf.key)
+
+		impl.logger.WithFields(l.ErrorField(err), l.StringField("file", sf.filePath)).
+			Error("reopen file failed")
+
+		return err
+	}
+
+	sf.file = rawFile
+
+	sf.latestRecordAt, err = impl.writeAllBillsOnFile(sf.file, bills)
+
+	return
 }
 
 func (impl *billFileImpl) writeAllBillsOnFile(file *os.File, bills []model.GroupBill) (latestRecordAt time.Time,
@@ -342,7 +453,7 @@ func (impl *billFileImpl) GetBills(startDate, finishDate string) (bills []model.
 	return
 }
 
-func (impl *billFileImpl) GetBillsByID(id string, count int, dirNew bool) (bills []model.GroupBill, hasMore bool, err error) {
+func (impl *billFileImpl) ListBills(id string, count int, dirNew bool) (bills []model.GroupBill, hasMore bool, err error) {
 	files, err := os.ReadDir(impl.dir)
 	if err != nil {
 		return
