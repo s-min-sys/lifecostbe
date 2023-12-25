@@ -15,12 +15,25 @@ import (
 func (s *Server) handleDeleteRecord(c *gin.Context) {
 	respWrapper := &ResponseWrapper{}
 
-	respWrapper.Apply(s.handleDeleteRecordInner(c))
+	dayStatistics, weekStatistics, monthStatistics, seasonStatistics,
+		yearStatistics, code, msg := s.handleDeleteRecordInner(c)
+	if code == CodeSuccess {
+		respWrapper.Resp = DeleteRecordResponse{
+			DayStatistics:    dayStatistics,
+			WeekStatistics:   weekStatistics,
+			MonthStatistics:  monthStatistics,
+			SeasonStatistics: seasonStatistics,
+			YearStatistics:   yearStatistics,
+		}
+	}
+
+	respWrapper.Apply(code, msg)
 
 	c.JSON(http.StatusOK, respWrapper)
 }
 
-func (s *Server) handleDeleteRecordInner(c *gin.Context) (code Code, msg string) {
+func (s *Server) handleDeleteRecordInner(c *gin.Context) (dayStatistics, weekStatistics, monthStatistics, seasonStatistics,
+	yearStatistics Statistics, code Code, msg string) {
 	_, uid, _, code, msg := s.getAndCheckToken(c)
 	if code != CodeSuccess {
 		return
@@ -29,7 +42,17 @@ func (s *Server) handleDeleteRecordInner(c *gin.Context) (code Code, msg string)
 	recordID := c.Param("id")
 	if recordID == "" {
 		code = CodeInternalError
-		msg = "确实记录ID"
+		msg = MsgNoRecordID
+
+		return
+	}
+
+	var req DeleteRecordRequest
+
+	err := c.BindJSON(&req)
+	if err != nil {
+		code = CodeProtocol
+		msg = err.Error()
 
 		return
 	}
@@ -65,16 +88,13 @@ func (s *Server) handleDeleteRecordInner(c *gin.Context) (code Code, msg string)
 			continue
 		}
 
-		if len(groupBill.LabelIDs) > 0 {
-			for _, labelID := range groupBill.LabelIDs {
-				s.stat.SetDayData(billStatKey(groupID, labelID), time.Unix(groupBill.At, 0), curD)
-			}
-		} else {
-			s.stat.SetDayData(billStatKey(groupID, 0), time.Unix(groupBill.At, 0), curD)
-		}
-
-		s.stat.SetDayData(billStatKey(groupID, groupID), time.Unix(groupBill.At, 0), curD)
+		s.statOnRemoveRecord(groupID, groupBill)
 	}
+
+	groupID, _ := s.inGroupEx(uid, 0)
+
+	dayStatistics, weekStatistics, monthStatistics, seasonStatistics,
+		yearStatistics = s.getStats(groupID, req.DStatLabelIDs)
 
 	return
 }
@@ -236,20 +256,7 @@ func (s *Server) recordSingle(uid uint64, req RecordRequest) (code Code, msg str
 			s.logger.WithFields(l.ErrorField(e)).Error("record failed")
 		}
 
-		curD := bill2LifeCostData4Add(groupBill)
-		if curD.T == ex.ListCostDataNon {
-			continue
-		}
-
-		if len(req.DLabelIDs) > 0 {
-			for _, labelID := range req.DLabelIDs {
-				s.stat.SetDayData(billStatKey(groupID, labelID), time.Unix(groupBill.At, 0), curD)
-			}
-		} else {
-			s.stat.SetDayData(billStatKey(groupID, 0), time.Unix(groupBill.At, 0), curD)
-		}
-
-		s.stat.SetDayData(billStatKey(groupID, groupID), time.Unix(groupBill.At, 0), curD)
+		s.statOnAddRecord(groupID, req.DLabelIDs, groupBill)
 	}
 
 	code = CodeSuccess
@@ -362,25 +369,8 @@ func (s *Server) handleGetRecordsInner(c *gin.Context) (voBills []Bill, hasMore 
 	}
 
 	if withStatistics {
-		fnMergeStatistics := func(totalStat *Statistics, curStat Statistics) {
-			totalStat.OutgoingCount += curStat.OutgoingCount
-			totalStat.OutgoingAmount += curStat.OutgoingAmount
-			totalStat.IncomingCount += curStat.IncomingCount
-			totalStat.IncomingAmount += curStat.IncomingAmount
-		}
-
-		if len(req.DStatLabelIDs) == 0 {
-			dayStatistics, weekStatistics, monthStatistics, seasonStatistics, yearStatistics = s.doStatistics(groupID, groupID)
-		} else {
-			for _, labelID := range req.DStatLabelIDs {
-				d, w, m, s, y := s.doStatistics(groupID, labelID)
-				fnMergeStatistics(&dayStatistics, d)
-				fnMergeStatistics(&weekStatistics, w)
-				fnMergeStatistics(&monthStatistics, m)
-				fnMergeStatistics(&seasonStatistics, s)
-				fnMergeStatistics(&yearStatistics, y)
-			}
-		}
+		dayStatistics, weekStatistics, monthStatistics, seasonStatistics,
+			yearStatistics = s.getStats(groupID, req.DStatLabelIDs)
 	}
 
 	return
@@ -429,6 +419,174 @@ func (s *Server) handleBatchRecordInner(c *gin.Context) (code Code, msg string) 
 
 	code = CodeSuccess
 	msg = allMsg
+
+	return
+}
+
+func (s *Server) handleGetDeletedRecords(c *gin.Context) {
+	respWrapper := &ResponseWrapper{}
+
+	bills, code, msg := s.handleGetDeletedRecordsInner(c)
+	if code == CodeSuccess {
+		respWrapper.Resp = GetDeletedRecordsResponse{
+			Bills: bills,
+		}
+	}
+
+	respWrapper.Apply(code, msg)
+
+	c.JSON(http.StatusOK, respWrapper)
+}
+
+func (s *Server) handleGetDeletedRecordsInner(c *gin.Context) (bills []DeletedBill, code Code, msg string) {
+	_, uid, _, code, msg := s.getAndCheckToken(c)
+	if code != CodeSuccess {
+		return
+	}
+
+	groupID, ok := s.inGroupEx(uid, 0)
+	if !ok {
+		code = CodeDisabled
+		msg = "用户不属于任何组"
+
+		return
+	}
+
+	deletedBills, err := s.storage.GetDeletedBills(groupID)
+	if err != nil {
+		code = CodeInternalError
+		msg = err.Error()
+
+		return
+	}
+
+	bills = make([]DeletedBill, 0, len(deletedBills))
+
+	for _, bill := range deletedBills {
+		bills = append(bills, DeletedBill{
+			Bill: Bill{
+				ID:                bill.ID,
+				FromSubWalletID:   idN2S(bill.FromSubWalletID),
+				FromSubWalletName: s.helperGetWalletName(bill.FromSubWalletID),
+				ToSubWalletID:     idN2S(bill.ToSubWalletID),
+				ToSubWalletName:   s.helperGetWalletName(bill.ToSubWalletID),
+				CostDir:           bill.CostDir,
+				Amount:            bill.Amount,
+				LabelIDs:          idN2Ss(bill.LabelIDs),
+				LabelIDNames:      s.helperGetLabelNames(bill.LabelIDs, uid),
+				Remark:            bill.Remark,
+				LossAmount:        bill.LossAmount,
+				LossWalletID:      idN2S(bill.LossWalletID),
+				LossWalletName:    s.helperGetWalletName(bill.LossWalletID),
+				At:                bill.At,
+				AtS:               time.Unix(bill.At, 0).Format("01/02 15:04"),
+				FromPersonName:    s.helperGetWalletPersonName(bill.FromSubWalletID),
+				ToPersonName:      s.helperGetWalletPersonName(bill.ToSubWalletID),
+				OperationID:       idN2S(bill.OperationPersonID),
+				OperationName:     s.helperPersonName(bill.OperationPersonID),
+			},
+			DeletedAt: bill.DeletedAt.Format("01/02 15:04"),
+		})
+	}
+
+	return
+}
+
+func (s *Server) handleRemoveDeleteRecord(c *gin.Context) {
+	respWrapper := &ResponseWrapper{}
+
+	respWrapper.Apply(s.handleRemoveDeleteRecordInner(c))
+
+	c.JSON(http.StatusOK, respWrapper)
+}
+
+func (s *Server) handleRemoveDeleteRecordInner(c *gin.Context) (code Code, msg string) {
+	_, uid, _, code, msg := s.getAndCheckToken(c)
+	if code != CodeSuccess {
+		return
+	}
+
+	recordID := c.Param("id")
+	if recordID == "" {
+		code = CodeInternalError
+		msg = MsgNoRecordID
+
+		return
+	}
+
+	groupIDs, err := s.storage.GetPersonGroupsIDs(uid)
+	if err != nil {
+		code = CodeInternalError
+		msg = err.Error()
+
+		return
+	}
+
+	for _, groupID := range groupIDs {
+		err = s.storage.CleanDeletedBill(groupID, recordID)
+		if err != nil {
+			s.logger.WithFields(l.ErrorField(err)).Error("remove deleted record failed")
+
+			continue
+		}
+	}
+
+	code = CodeSuccess
+
+	return
+}
+
+func (s *Server) handleRestoreDeleteRecord(c *gin.Context) {
+	respWrapper := &ResponseWrapper{}
+
+	respWrapper.Apply(s.handleRestoreDeleteRecordInner(c))
+
+	c.JSON(http.StatusOK, respWrapper)
+}
+
+func (s *Server) handleRestoreDeleteRecordInner(c *gin.Context) (code Code, msg string) {
+	_, uid, _, code, msg := s.getAndCheckToken(c)
+	if code != CodeSuccess {
+		return
+	}
+
+	recordID := c.Param("id")
+	if recordID == "" {
+		code = CodeInternalError
+		msg = MsgNoRecordID
+
+		return
+	}
+
+	groupIDs, err := s.storage.GetPersonGroupsIDs(uid)
+	if err != nil {
+		code = CodeInternalError
+		msg = err.Error()
+
+		return
+	}
+
+	for _, groupID := range groupIDs {
+		var bill model.DeletedGroupBill
+
+		bill, err = s.storage.GetDeletedBill(groupID, recordID)
+		if err != nil {
+			s.logger.WithFields(l.ErrorField(err)).Error("get deleted record failed")
+
+			continue
+		}
+
+		err = s.storage.RestoreDeletedBill(groupID, recordID)
+		if err != nil {
+			s.logger.WithFields(l.ErrorField(err)).Error("restore deleted record failed")
+
+			continue
+		}
+
+		s.statOnAddRecord(groupID, bill.LabelIDs, bill.GroupBill)
+	}
+
+	code = CodeSuccess
 
 	return
 }

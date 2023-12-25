@@ -19,24 +19,35 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const (
+	deletedFileName = "deleted-records"
+)
+
 type BillFile interface {
 	AddBill(bill model.GroupBill) error
 	GetBill(billID string) (bill model.GroupBill, err error)
-	DeleteRecord(billID string) (err error)
 	GetBills(startDate, finishDate string) ([]model.GroupBill, error)
 	ListBills(id string, count int, dirNew bool) (bills []model.GroupBill, hasMore bool, err error)
+
+	DeleteRecord(billID string) (err error)
+	GetDeletedBill(billID string) (bill model.DeletedGroupBill, err error)
+	GetDeletedBills() ([]model.DeletedGroupBill, error)
+	RemoveDeletedBillHistory(billID string) error
+	RestoreDeletedBill(billID string) error
 }
 
-func NewBillFile(dir string, base string, logger l.Wrapper) BillFile {
+func NewBillFile(groupID uint64, dir string, base string, logger l.Wrapper) BillFile {
 	if logger == nil {
 		logger = l.NewNopLoggerWrapper()
 	}
 
 	return &billFileImpl{
-		dir:    dir,
-		base:   base,
-		logger: logger.WithFields(l.StringField(l.ClsKey, "billFileImpl")),
-		files:  make(map[string]*streamFile),
+		groupID:      groupID,
+		dir:          dir,
+		base:         base,
+		logger:       logger.WithFields(l.StringField(l.ClsKey, "billFileImpl")),
+		files:        make(map[string]*streamFile),
+		deletedBills: make(map[uint64]map[string]model.DeletedGroupBill),
 	}
 }
 
@@ -50,12 +61,16 @@ type streamFile struct {
 }
 
 type billFileImpl struct {
-	lock   sync.Mutex
-	dir    string
-	base   string
-	logger l.Wrapper
+	lock    sync.Mutex
+	groupID uint64
+	dir     string
+	base    string
+	logger  l.Wrapper
 
 	files map[string]*streamFile
+
+	deletedBillsLock sync.Mutex
+	deletedBills     map[uint64]map[string]model.DeletedGroupBill
 }
 
 func (impl *billFileImpl) getFileKey(at time.Time) string {
@@ -173,8 +188,17 @@ func (impl *billFileImpl) AddBill(bill model.GroupBill) error {
 		return nil
 	}
 
-	_ = sf.file.Close()
+	err = impl.rebuildGroupDateBills(sf, func(bills []model.GroupBill) (newBills []model.GroupBill, err error) {
+		newBills = append(bills, bill)
 
+		return
+	})
+
+	return err
+}
+
+func (impl *billFileImpl) rebuildGroupDateBills(sf *streamFile,
+	billsProc func(bills []model.GroupBill) (newBills []model.GroupBill, err error)) (err error) {
 	bills, err := impl.readFileBills(sf.filePath)
 	if err != nil {
 		impl.logger.WithFields(l.ErrorField(err), l.StringField("filePath", sf.filePath)).
@@ -183,9 +207,13 @@ func (impl *billFileImpl) AddBill(bill model.GroupBill) error {
 		return err
 	}
 
-	bills = append(bills, bill)
+	bills, err = billsProc(bills)
+	if err != nil {
+		impl.logger.WithFields(l.ErrorField(err), l.StringField("filePath", sf.filePath)).
+			Error("proc bills return error")
 
-	_ = os.RemoveAll(sf.filePath)
+		return err
+	}
 
 	slices.SortFunc(bills, func(a, b model.GroupBill) int {
 		if a.At == b.At {
@@ -198,6 +226,14 @@ func (impl *billFileImpl) AddBill(bill model.GroupBill) error {
 
 		return 1
 	})
+
+	_ = sf.file.Close()
+
+	bakFilePath := sf.filePath + ".bak"
+
+	_ = os.RemoveAll(bakFilePath)
+
+	_ = os.Rename(sf.filePath, bakFilePath)
 
 	rawFile, err := os.OpenFile(sf.filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
 	if err != nil {
@@ -212,10 +248,17 @@ func (impl *billFileImpl) AddBill(bill model.GroupBill) error {
 	sf.file = rawFile
 
 	sf.latestRecordAt, err = impl.writeAllBillsOnFile(sf.file, bills)
+	if err != nil {
+		delete(impl.files, sf.key)
 
-	return err
+		impl.logger.WithFields(l.ErrorField(err), l.StringField("file", sf.filePath)).
+			Error("write all bills failed")
+
+		return err
+	}
+
+	return
 }
-
 func (impl *billFileImpl) GetBill(billID string) (bill model.GroupBill, err error) {
 	if len(billID) <= 8 {
 		err = commerr.ErrInvalidArgument
@@ -255,6 +298,29 @@ func (impl *billFileImpl) GetBill(billID string) (bill model.GroupBill, err erro
 	return
 }
 
+func (impl *billFileImpl) GetDeletedBill(billID string) (bill model.DeletedGroupBill, err error) {
+	bill, ok := impl.getDeleteBill(billID)
+	if !ok {
+		err = commerr.ErrNotFound
+
+		return
+	}
+
+	return
+}
+
+func (impl *billFileImpl) GetDeletedBills() ([]model.DeletedGroupBill, error) {
+	return impl.getDeletedBills()
+}
+
+func (impl *billFileImpl) RemoveDeletedBillHistory(billID string) error {
+	return impl.deleteDeletedBill(billID)
+}
+
+func (impl *billFileImpl) RestoreDeletedBill(billID string) error {
+	return impl.restoreDeletedBill(billID)
+}
+
 func (impl *billFileImpl) DeleteRecord(billID string) (err error) {
 	if len(billID) <= 8 {
 		err = commerr.ErrInvalidArgument
@@ -271,54 +337,41 @@ func (impl *billFileImpl) DeleteRecord(billID string) (err error) {
 		return commerr.ErrInternal
 	}
 
-	sf.lock.Lock()
-	defer sf.lock.Unlock()
+	//
+	var toDeletedBill *model.GroupBill
 
-	_ = sf.file.Close()
+	err = impl.rebuildGroupDateBills(sf, func(bills []model.GroupBill) (newBills []model.GroupBill, err error) {
+		for idx := 0; idx < len(bills); idx++ {
+			if bills[idx].ID == billID {
+				b := bills[idx]
+				toDeletedBill = &b
 
-	bills, err := impl.readFileBills(sf.filePath)
-	if err != nil {
-		impl.logger.WithFields(l.ErrorField(err), l.StringField("filePath", sf.filePath)).
-			Error("read bills failed")
+				bills = slices.Delete(bills, idx, idx+1)
 
-		return err
-	}
-
-	_ = os.RemoveAll(sf.filePath)
-
-	for idx := 0; idx < len(bills); idx++ {
-		if bills[idx].ID == billID {
-			bills = slices.Delete(bills, idx, idx+1)
-
-			break
-		}
-	}
-
-	slices.SortFunc(bills, func(a, b model.GroupBill) int {
-		if a.At == b.At {
-			return 0
+				break
+			}
 		}
 
-		if a.At < b.At {
-			return -1
+		if toDeletedBill == nil {
+			err = commerr.ErrNotFound
+
+			return
 		}
 
-		return 1
+		err = impl.addDeletedBill(model.DeletedGroupBill{
+			GroupBill: *toDeletedBill,
+			DeletedAt: time.Now(),
+		})
+		if err != nil {
+			impl.logger.WithFields(l.ErrorField(err)).Error("recordDeletedBill failed")
+
+			return
+		}
+
+		newBills = bills
+
+		return
 	})
-
-	rawFile, err := os.OpenFile(sf.filePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
-	if err != nil {
-		delete(impl.files, sf.key)
-
-		impl.logger.WithFields(l.ErrorField(err), l.StringField("file", sf.filePath)).
-			Error("reopen file failed")
-
-		return err
-	}
-
-	sf.file = rawFile
-
-	sf.latestRecordAt, err = impl.writeAllBillsOnFile(sf.file, bills)
 
 	return
 }
@@ -477,6 +530,10 @@ func (impl *billFileImpl) ListBills(id string, count int, dirNew bool) (bills []
 		}
 
 		if !strings.HasPrefix(file.Name(), impl.base) {
+			continue
+		}
+
+		if strings.HasSuffix(file.Name(), ".bak") {
 			continue
 		}
 

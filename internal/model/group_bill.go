@@ -36,3 +36,8 @@ func (gb *GroupBill) Valid() bool {
 
 	return true
 }
+
+type DeletedGroupBill struct {
+	GroupBill `json:",inline"`
+	DeletedAt time.Time `json:"deletedAt"`
+}

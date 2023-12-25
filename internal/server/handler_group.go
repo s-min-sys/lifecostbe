@@ -261,7 +261,7 @@ func (s *Server) inGroupEx(uid, groupID uint64) (suggestGroupID uint64, ok bool)
 	}
 
 	for _, d := range groupIDs {
-		if d == groupID {
+		if d == suggestGroupID {
 			ok = true
 
 			return

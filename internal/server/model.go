@@ -277,3 +277,38 @@ func (req *BatchRecordRequest) Valid() bool {
 
 	return true
 }
+
+type DeletedBill struct {
+	Bill      `json:",inline"`
+	DeletedAt string `json:"deletedAt"`
+}
+
+type GetDeletedRecordsResponse struct {
+	Bills []DeletedBill `json:"bills"`
+}
+
+type DeleteRecordRequest struct {
+	RequestStat  bool     `json:"requestStat"`
+	StatLabelIDs []string `json:"statLabelIDs"` // empty: all; [] 0: no label record; labelID: label id record
+
+	DStatLabelIDs []uint64 `json:"-"`
+}
+
+func (req *DeleteRecordRequest) Valid() bool {
+	req.DStatLabelIDs = make([]uint64, 0, len(req.StatLabelIDs))
+
+	for _, labelID := range req.StatLabelIDs {
+		dLabelID, _ := idS2N(labelID)
+		req.DStatLabelIDs = append(req.DStatLabelIDs, dLabelID)
+	}
+
+	return true
+}
+
+type DeleteRecordResponse struct {
+	DayStatistics    Statistics `json:"dayStatistics"`
+	WeekStatistics   Statistics `json:"weekStatistics"`
+	MonthStatistics  Statistics `json:"monthStatistics"`
+	SeasonStatistics Statistics `json:"seasonStatistics"`
+	YearStatistics   Statistics `json:"yearStatistics"`
+}

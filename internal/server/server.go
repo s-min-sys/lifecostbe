@@ -120,6 +120,10 @@ func (s *Server) httpRoutine(_ context.Context, _ func() bool) {
 	r.POST("/records", s.handleGetRecords)
 	r.GET("/statistics", s.handleStatistics)
 
+	r.GET("/deleted-records", s.handleGetDeletedRecords)
+	r.POST("/deleted-records/delete/:id", s.handleRemoveDeleteRecord)
+	r.POST("/deleted-records/restore/:id", s.handleRestoreDeleteRecord)
+
 	r.POST("/manager/wallet/new", s.handleWalletNew)
 	r.POST("/manager/group/new", s.handleGroupNew)
 	r.POST("/manager/group/enter-codes", s.handleGroupEnterCodes)

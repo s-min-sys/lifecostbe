@@ -68,6 +68,11 @@ type Storage interface {
 		finishMonth, finishDay int) ([]model.GroupBill, error)
 	GetBillsByID(groupID uint64, id string, count int, dirNew bool) (bills []model.GroupBill, hasMore bool, err error)
 
+	GetDeletedBills(groupID uint64) (bills []model.DeletedGroupBill, err error)
+	GetDeletedBill(groupID uint64, billID string) (bill model.DeletedGroupBill, err error)
+	CleanDeletedBill(groupID uint64, billID string) (err error)
+	RestoreDeletedBill(groupID uint64, billID string) (err error)
+
 	AddGroupEnterCodes(enterCodes []string, personID, groupID uint64, duration time.Duration) (err error)
 	ActiveGroupEnterCode(enterCode string) (personID, groupID uint64, ok bool, err error)
 }
@@ -139,7 +144,7 @@ func (impl *storageImpl) getGroupBills(groupID uint64) BillFile {
 
 	groupBill, ok := impl.groupBills[groupID]
 	if !ok {
-		groupBill = NewBillFile(impl.billsRoot, strconv.FormatUint(groupID, 10), impl.logger)
+		groupBill = NewBillFile(groupID, impl.billsRoot, strconv.FormatUint(groupID, 10), impl.logger)
 
 		impl.groupBills[groupID] = groupBill
 	}
@@ -858,6 +863,22 @@ func (impl *storageImpl) GetBillsEx(groupID uint64, startYear, startMonth, start
 
 func (impl *storageImpl) GetBillsByID(groupID uint64, id string, count int, dirNew bool) ([]model.GroupBill, bool, error) {
 	return impl.getGroupBills(groupID).ListBills(id, count, dirNew)
+}
+
+func (impl *storageImpl) GetDeletedBills(groupID uint64) (bills []model.DeletedGroupBill, err error) {
+	return impl.getGroupBills(groupID).GetDeletedBills()
+}
+
+func (impl *storageImpl) GetDeletedBill(groupID uint64, billID string) (bill model.DeletedGroupBill, err error) {
+	return impl.getGroupBills(groupID).GetDeletedBill(billID)
+}
+
+func (impl *storageImpl) CleanDeletedBill(groupID uint64, billID string) (err error) {
+	return impl.getGroupBills(groupID).RemoveDeletedBillHistory(billID)
+}
+
+func (impl *storageImpl) RestoreDeletedBill(groupID uint64, billID string) (err error) {
+	return impl.getGroupBills(groupID).RestoreDeletedBill(billID)
 }
 
 func (impl *storageImpl) key4GroupEnterCode(enterCode string) string {
