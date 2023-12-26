@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/s-min-sys/lifecostbe/internal/model"
+	"github.com/sgostarter/libcomponents/statistic/memdate/ex"
 )
 
 type ResponseWrapper struct {
@@ -311,4 +312,38 @@ type DeleteRecordResponse struct {
 	MonthStatistics  Statistics `json:"monthStatistics"`
 	SeasonStatistics Statistics `json:"seasonStatistics"`
 	YearStatistics   Statistics `json:"yearStatistics"`
+}
+
+type StatYear struct {
+	Year    int                  `json:"year"`
+	Stat    ex.LifeCostTotalData `json:"stat"`
+	Seasons []StatSeason         `json:"seasons"`
+}
+
+type StatSeason struct {
+	Season int                  `json:"season"`
+	Stat   ex.LifeCostTotalData `json:"stat"`
+	Months []StatMonth          `json:"months"`
+}
+
+type StatMonth struct {
+	Month int                  `json:"month"`
+	Stat  ex.LifeCostTotalData `json:"stat"`
+	Weeks []StatWeek           `json:"weeks"`
+}
+
+type StatWeek struct {
+	Week int                  `json:"week"`
+	Stat ex.LifeCostTotalData `json:"stat"`
+	Days []StatWeekDay        `json:"days"`
+}
+
+type StatWeekDay struct {
+	WeekDay  int                  `json:"weekDay"`
+	MonthDay int                  `json:"monthDay"`
+	Stat     ex.LifeCostTotalData `json:"stat"`
+}
+
+type StatAllResponse struct {
+	Years []StatYear `json:"years"`
 }

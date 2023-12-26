@@ -118,7 +118,8 @@ func (s *Server) httpRoutine(_ context.Context, _ func() bool) {
 	r.POST("/record/delete/:id", s.handleDeleteRecord)
 	r.POST("/record/batch", s.handleBatchRecord)
 	r.POST("/records", s.handleGetRecords)
-	r.GET("/statistics", s.handleStatistics)
+	r.GET("/statistics/now", s.handleStatisticsNow)
+	r.GET("/statistics/all", s.handleStatisticsAll)
 
 	r.GET("/deleted-records", s.handleGetDeletedRecords)
 	r.POST("/deleted-records/delete/:id", s.handleRemoveDeleteRecord)

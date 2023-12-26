@@ -85,8 +85,8 @@ github.com/rogpeppe/go-internal v1.8.0/go.mod h1:WmiCO8CzOY8rg0OYDC4/i/2WRWAB6po
 github.com/rogpeppe/go-internal v1.9.0 h1:73kH8U+JUqXU8lRuOHeVHaa/SZPifC7BkcraZVejAe8=
 github.com/sgostarter/i v0.1.16 h1:bSKlC3PdXmbx8TiUVCFicQhgMbqoMSpDa9pzw0NS+7I=
 github.com/sgostarter/i v0.1.16/go.mod h1:AQ1Z3CmrfLm09U8qn5XAuor/px/n2gJErhfLkgSsEto=
-github.com/sgostarter/libcomponents v0.0.11 h1:xn2AEZOoW/GzJE6i+mONBLyEHLzPG8DH3Br6yUjArIE=
-github.com/sgostarter/libcomponents v0.0.11/go.mod h1:LC+hKtLh9gPuzfUcnK2F5Wu6FvbOEtITLpLos95EtMc=
+github.com/sgostarter/libcomponents v0.0.12 h1:UFVZgjERgSd/TewT5DYO70ToBoJ32xn3CNrDy/nz8pE=
+github.com/sgostarter/libcomponents v0.0.12/go.mod h1:LC+hKtLh9gPuzfUcnK2F5Wu6FvbOEtITLpLos95EtMc=
 github.com/sgostarter/libconfig v0.0.1 h1:6V1YTFjr3fbN9qXeQ0KnmAmerQnGKxrZm3fGdZVtCc4=
 github.com/sgostarter/libconfig v0.0.1/go.mod h1:5KLny8g++hHgCBbsMYRpxSUsJIi77h/3/CftIiWJox8=
 github.com/sgostarter/libeasygo v0.1.60 h1:riSPMPYwsV29+YTYEvfJq4vYrLn4BwG/FFCn7+feBGg=
