@@ -590,3 +590,95 @@ func (s *Server) handleRestoreDeleteRecordInner(c *gin.Context) (code Code, msg 
 
 	return
 }
+
+func (s *Server) handleGetDayRecords(c *gin.Context) {
+	respWrapper := &ResponseWrapper{}
+
+	bills, code, msg := s.handleGetDayRecordsInner(c)
+	if code == CodeSuccess {
+		respWrapper.Resp = GetDayRecordsResponse{
+			Bills: bills,
+		}
+	}
+
+	respWrapper.Apply(code, msg)
+
+	c.JSON(http.StatusOK, respWrapper)
+}
+
+func (s *Server) handleGetDayRecordsInner(c *gin.Context) (voBills []Bill, code Code, msg string) {
+	_, uid, _, code, msg := s.getAndCheckToken(c)
+	if code != CodeSuccess {
+		return
+	}
+
+	var req GetDayRecordsRequest
+
+	err := c.BindJSON(&req)
+	if err != nil {
+		code = CodeProtocol
+		msg = err.Error()
+
+		return
+	}
+
+	if !req.Valid() {
+		code = CodeMissArgs
+
+		return
+	}
+
+	groupID, ok := s.inGroupEx(uid, 0)
+	if !ok {
+		code = CodeDisabled
+		msg = "用户不属于任何组"
+
+		return
+	}
+
+	bills, err := s.storage.GetBillsEx(groupID, req.Year, req.Month, req.Day, req.Year, req.Month, req.Day)
+	if err != nil {
+		code = CodeInternalError
+		msg = err.Error()
+
+		return
+	}
+
+	voBills = s.billsDo2Po(uid, bills)
+
+	return
+}
+
+func (s *Server) billsDo2Po(uid uint64, bills []model.GroupBill) []Bill {
+	voBills := make([]Bill, 0, len(bills))
+
+	for _, bill := range bills {
+		voBills = append(voBills, s.billDo2Po(uid, bill))
+	}
+
+	return voBills
+}
+
+func (s *Server) billDo2Po(uid uint64, bill model.GroupBill) Bill {
+	return Bill{
+		ID:                bill.ID,
+		FromSubWalletID:   idN2S(bill.FromSubWalletID),
+		FromSubWalletName: s.helperGetWalletName(bill.FromSubWalletID),
+		ToSubWalletID:     idN2S(bill.ToSubWalletID),
+		ToSubWalletName:   s.helperGetWalletName(bill.ToSubWalletID),
+		CostDir:           bill.CostDir,
+		Amount:            bill.Amount,
+		LabelIDs:          idN2Ss(bill.LabelIDs),
+		LabelIDNames:      s.helperGetLabelNames(bill.LabelIDs, uid),
+		Remark:            bill.Remark,
+		LossAmount:        bill.LossAmount,
+		LossWalletID:      idN2S(bill.LossWalletID),
+		LossWalletName:    s.helperGetWalletName(bill.LossWalletID),
+		At:                bill.At,
+		AtS:               time.Unix(bill.At, 0).Format("01/02 15:04"),
+		FromPersonName:    s.helperGetWalletPersonName(bill.FromSubWalletID),
+		ToPersonName:      s.helperGetWalletPersonName(bill.ToSubWalletID),
+		OperationID:       idN2S(bill.OperationPersonID),
+		OperationName:     s.helperPersonName(bill.OperationPersonID),
+	}
+}

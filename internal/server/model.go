@@ -347,3 +347,17 @@ type StatWeekDay struct {
 type StatAllResponse struct {
 	Years []StatYear `json:"years"`
 }
+
+type GetDayRecordsRequest struct {
+	Year  int `json:"year"`
+	Month int `json:"month"`
+	Day   int `json:"day"`
+}
+
+func (req *GetDayRecordsRequest) Valid() bool {
+	return req.Year > 0 && req.Month > 0 && req.Day > 0
+}
+
+type GetDayRecordsResponse struct {
+	Bills []Bill `json:"bills"`
+}
